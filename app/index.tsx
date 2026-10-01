@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import {
+  View, Text, StyleSheet, Pressable, ActivityIndicator,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,15 +11,15 @@ import { useBot } from '@/hooks/useBot';
 import { Colors, FontSize, FontWeight, Spacing, Radius } from '@/constants/theme';
 
 export default function LoginScreen() {
-  const { isLoggedIn, login } = useBot();
+  const { isLoggedIn, isAuthLoading, login, loginMode } = useBot();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && !isAuthLoading) {
       router.replace('/(tabs)');
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, isAuthLoading]);
 
   return (
     <View style={styles.container}>
@@ -36,8 +38,11 @@ export default function LoginScreen() {
       {/* Top Glow */}
       <View style={styles.topGlow} />
 
-      <View style={[styles.content, { paddingBottom: insets.bottom + Spacing.xl, paddingTop: insets.top + Spacing.xl }]}>
-        {/* Logo Section */}
+      <View style={[styles.content, {
+        paddingBottom: insets.bottom + Spacing.xl,
+        paddingTop: insets.top + Spacing.xl,
+      }]}>
+        {/* Logo */}
         <View style={styles.logoSection}>
           <View style={styles.logoWrap}>
             <Image
@@ -72,9 +77,10 @@ export default function LoginScreen() {
         <View style={styles.ctaSection}>
           <Pressable
             onPress={login}
+            disabled={isAuthLoading}
             style={({ pressed }) => [
               styles.loginBtn,
-              pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+              (pressed || isAuthLoading) && { opacity: 0.8, transform: [{ scale: 0.98 }] },
             ]}
           >
             <LinearGradient
@@ -83,15 +89,44 @@ export default function LoginScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.loginGradient}
             >
-              <MaterialIcons name="discord" size={22} color={Colors.textPrimary} />
-              <Text style={styles.loginText}>Login with Discord</Text>
+              {isAuthLoading ? (
+                <ActivityIndicator color={Colors.textPrimary} size="small" />
+              ) : (
+                <MaterialIcons name="discord" size={22} color={Colors.textPrimary} />
+              )}
+              <Text style={styles.loginText}>
+                {isAuthLoading ? 'Connecting...' : 'Login with Discord'}
+              </Text>
             </LinearGradient>
           </Pressable>
 
-          <Text style={styles.mockNotice}>
-            DEMO MODE — using mock data
-          </Text>
+          {/* Mode indicator */}
+          {loginMode === 'mock' ? (
+            <View style={styles.modeBanner}>
+              <MaterialIcons name="info-outline" size={14} color={Colors.warning} />
+              <Text style={styles.mockNotice}>
+                DEMO MODE — Set EXPO_PUBLIC_DISCORD_CLIENT_ID to enable real OAuth
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.modeBanner}>
+              <MaterialIcons name="lock" size={14} color={Colors.success} />
+              <Text style={styles.realNotice}>
+                Discord OAuth2 · Secure login via Discord
+              </Text>
+            </View>
+          )}
         </View>
+
+        {/* OAuth info */}
+        {loginMode === 'real' ? (
+          <View style={styles.oauthInfo}>
+            <Text style={styles.oauthInfoText}>
+              You will be redirected to Discord to authorize DENZZMUSIC.{'\n'}
+              Only servers where you have <Text style={{ color: Colors.primaryLight }}>Manage Server</Text> permission are shown.
+            </Text>
+          </View>
+        ) : null}
 
         {/* Footer */}
         <Text style={styles.footer}>DENZZMUSIC — Discord Music Bot 24/7</Text>
@@ -117,37 +152,30 @@ const styles = StyleSheet.create({
   },
   logoSection: { alignItems: 'center', marginTop: Spacing.xl },
   logoWrap: {
-    width: 100, height: 100,
-    borderRadius: 28,
+    width: 100, height: 100, borderRadius: 28,
     backgroundColor: Colors.bgGlassStrong,
     borderWidth: 1, borderColor: Colors.borderStrong,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5, shadowRadius: 30,
-    elevation: 10,
-    marginBottom: Spacing.md,
+    elevation: 10, marginBottom: Spacing.md,
   },
   logo: { width: 72, height: 72 },
   appName: {
-    color: Colors.textPrimary,
-    fontSize: FontSize.display,
-    fontWeight: FontWeight.extrabold,
-    letterSpacing: 3,
+    color: Colors.textPrimary, fontSize: FontSize.display,
+    fontWeight: FontWeight.extrabold, letterSpacing: 3,
   },
   tagline: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.md,
-    marginTop: Spacing.xs,
-    letterSpacing: 1,
+    color: Colors.textSecondary, fontSize: FontSize.md,
+    marginTop: Spacing.xs, letterSpacing: 1,
   },
 
   features: {
     backgroundColor: Colors.bgGlass,
     borderWidth: 1, borderColor: Colors.border,
     borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    gap: Spacing.md,
+    padding: Spacing.lg, gap: Spacing.md,
   },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   featureIcon: {
@@ -157,7 +185,7 @@ const styles = StyleSheet.create({
   },
   featureText: { color: Colors.textSecondary, fontSize: FontSize.md },
 
-  ctaSection: { gap: Spacing.md },
+  ctaSection: { gap: Spacing.sm },
   loginBtn: {
     borderRadius: Radius.lg, overflow: 'hidden',
     shadowColor: Colors.primary,
@@ -166,25 +194,39 @@ const styles = StyleSheet.create({
   },
   loginGradient: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: Spacing.md + 2, gap: Spacing.sm,
-    minHeight: 56,
+    paddingVertical: Spacing.md + 2, gap: Spacing.sm, minHeight: 56,
   },
   loginText: {
-    color: Colors.textPrimary,
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 0.5,
+    color: Colors.textPrimary, fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold, letterSpacing: 0.5,
+  },
+
+  modeBanner: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    gap: 6, paddingHorizontal: Spacing.xs,
   },
   mockNotice: {
-    color: Colors.textMuted,
-    fontSize: FontSize.xs,
-    textAlign: 'center',
-    letterSpacing: 1,
+    flex: 1, color: Colors.warning, fontSize: FontSize.xs,
+    letterSpacing: 0.5, lineHeight: 18,
   },
-  footer: {
-    color: Colors.textMuted,
-    fontSize: FontSize.xs,
-    textAlign: 'center',
+  realNotice: {
+    flex: 1, color: Colors.success, fontSize: FontSize.xs,
     letterSpacing: 0.5,
+  },
+
+  oauthInfo: {
+    backgroundColor: 'rgba(229,57,53,0.08)',
+    borderWidth: 1, borderColor: 'rgba(229,57,53,0.2)',
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+  },
+  oauthInfoText: {
+    color: Colors.textMuted, fontSize: FontSize.xs,
+    lineHeight: 18, textAlign: 'center',
+  },
+
+  footer: {
+    color: Colors.textMuted, fontSize: FontSize.xs,
+    textAlign: 'center', letterSpacing: 0.5,
   },
 });
